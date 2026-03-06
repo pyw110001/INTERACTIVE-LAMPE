@@ -6,7 +6,7 @@ import { ChatPanel } from './components/ChatPanel';
 import { StatusBar } from './components/StatusBar';
 import { LampState, ChatMessage } from './types';
 import { processChatInput } from './utils/chatLogic';
-import { MessageSquare, Settings2, X } from 'lucide-react';
+import { MessageSquare, Settings2, X, ChevronRight, ChevronLeft } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<LampState>({
@@ -82,7 +82,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-[100dvh] w-screen bg-[#020202] text-white overflow-hidden font-sans selection:bg-white/30 relative">
+    <div className="fixed inset-0 bg-[#020202] text-white overflow-hidden font-sans selection:bg-white/30 flex flex-col">
       {/* Background Typographic Watermark */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0 opacity-[0.02] mix-blend-overlay">
         <h1 className="text-[25vw] font-serif whitespace-nowrap tracking-tighter">AURA</h1>
@@ -94,67 +94,79 @@ export default function App() {
       </div>
 
       {/* UI Layer */}
-      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-8">
-        <div className="pointer-events-auto">
+      <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between">
+        
+        {/* Header Area */}
+        <div className="p-4 md:p-8 pointer-events-auto shrink-0">
           <Header />
         </div>
         
-        <div className="flex-1 relative mt-4 mb-20 md:mt-8 md:mb-16 pointer-events-none">
+        {/* Middle Area (Panels) */}
+        <div className="flex-1 relative w-full px-4 md:px-8 pointer-events-none">
+          
+          {/* Left Edge Show Button */}
+          <button
+            onClick={() => { setShowChat(true); if (window.innerWidth < 768) setShowControls(false); }}
+            className={`pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 z-30 p-3 bg-white/10 backdrop-blur-xl border border-white/20 border-l-0 rounded-r-2xl text-white/70 hover:text-white transition-all duration-500 shadow-[0_0_20px_rgba(255,255,255,0.05)]
+              ${showChat ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
+            title="Show Chat"
+          >
+            <ChevronRight size={24} />
+          </button>
+
           {/* Left Panel (Chat) */}
           <div 
-            className={`pointer-events-auto absolute bottom-0 left-0 h-[400px] md:h-[500px] w-full md:w-[360px] transition-all duration-500 ease-out z-20
-              ${showChat ? 'translate-y-0 md:translate-x-0 opacity-100' : 'translate-y-8 md:translate-y-0 md:-translate-x-8 opacity-0 pointer-events-none'}`}
+            className={`pointer-events-auto absolute top-1/2 -translate-y-1/2 left-4 md:left-8 w-[calc(100%-2rem)] md:w-[360px] h-[85%] max-h-[500px] transition-all duration-500 ease-out z-20 flex flex-col
+              ${showChat ? 'translate-x-0 opacity-100' : '-translate-x-[120%] opacity-0 pointer-events-none'}`}
           >
-            <div className="relative w-full h-full">
-              {/* Mobile Close Button */}
+            <div className="relative w-full h-full flex flex-col">
+              {/* Hide Button */}
               <button 
                 onClick={() => setShowChat(false)}
-                className="md:hidden absolute -top-12 right-0 w-10 h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                className="absolute -top-3 -right-3 md:-top-4 md:-right-4 z-50 w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors shadow-xl"
+                title="Hide Chat"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
               <ChatPanel messages={messages} onSendMessage={handleSendMessage} state={state} />
             </div>
           </div>
           
+          {/* Right Edge Show Button */}
+          <button
+            onClick={() => { setShowControls(true); if (window.innerWidth < 768) setShowChat(false); }}
+            className={`pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 z-30 p-3 bg-white/10 backdrop-blur-xl border border-white/20 border-r-0 rounded-l-2xl text-white/70 hover:text-white transition-all duration-500 shadow-[0_0_20px_rgba(255,255,255,0.05)]
+              ${showControls ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}
+            title="Show Controls"
+          >
+            <ChevronLeft size={24} />
+          </button>
+
           {/* Right Panel (Controls) */}
           <div 
-            className={`pointer-events-auto absolute bottom-0 right-0 h-[500px] md:h-[600px] w-full md:w-[360px] transition-all duration-500 ease-out z-20
-              ${showControls ? 'translate-y-0 md:translate-x-0 opacity-100' : 'translate-y-8 md:translate-y-0 md:translate-x-8 opacity-0 pointer-events-none'}`}
+            className={`pointer-events-auto absolute top-1/2 -translate-y-1/2 right-4 md:right-8 w-[calc(100%-2rem)] md:w-[360px] h-[85%] max-h-[600px] transition-all duration-500 ease-out z-20 flex flex-col
+              ${showControls ? 'translate-x-0 opacity-100' : 'translate-x-[120%] opacity-0 pointer-events-none'}`}
           >
-            <div className="relative w-full h-full">
-              {/* Mobile Close Button */}
+            <div className="relative w-full h-full flex flex-col">
+              {/* Hide Button */}
               <button 
                 onClick={() => setShowControls(false)}
-                className="md:hidden absolute -top-12 left-0 w-10 h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white/70 hover:text-white"
+                className="absolute -top-3 -left-3 md:-top-4 md:-left-4 z-50 w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors shadow-xl"
+                title="Hide Controls"
               >
-                <X size={20} />
+                <X size={16} />
               </button>
               <ControlPanel state={state} onChange={handleStateChange} />
             </div>
           </div>
         </div>
         
-        <div className="pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-full px-4 md:w-auto md:px-0 flex justify-between md:justify-center items-center">
-          {/* Mobile Toggle Chat Button */}
-          <button 
-            onClick={() => { setShowChat(!showChat); if (!showChat) setShowControls(false); }}
-            className={`md:hidden w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-colors
-              ${showChat ? 'bg-white/20 border-white/30 text-white' : 'bg-white/5 border-white/10 text-white/60'}`}
-          >
-            <MessageSquare size={20} />
-          </button>
-
-          <StatusBar state={state} />
-
-          {/* Mobile Toggle Controls Button */}
-          <button 
-            onClick={() => { setShowControls(!showControls); if (!showControls) setShowChat(false); }}
-            className={`md:hidden w-12 h-12 rounded-full backdrop-blur-xl border flex items-center justify-center transition-colors
-              ${showControls ? 'bg-white/20 border-white/30 text-white' : 'bg-white/5 border-white/10 text-white/60'}`}
-          >
-            <Settings2 size={20} />
-          </button>
+        {/* Bottom Area (Status Bar) */}
+        <div className="p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:pb-8 md:p-8 shrink-0 pointer-events-none flex justify-center items-center relative z-30">
+          {/* Status Bar */}
+          <div className="pointer-events-auto flex justify-center w-full max-w-[95vw] md:max-w-fit">
+            <StatusBar state={state} />
+          </div>
         </div>
       </div>
     </div>
