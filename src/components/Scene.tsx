@@ -12,9 +12,9 @@ interface SceneProps {
 export const Scene: React.FC<SceneProps> = ({ state }) => {
   return (
     <div className="w-full h-full relative">
-      <Canvas shadows camera={{ position: [0, 3, 10], fov: 35 }}>
+      <Canvas shadows camera={{ position: [-6, 4, 8], fov: 35, far: 1000 }}>
         <color attach="background" args={['#020202']} />
-        <fog attach="fog" args={['#020202', 8, 20]} />
+        <fog attach="fog" args={['#020202', 8, 40]} />
         
         <ambientLight intensity={0.01} />
         
@@ -82,9 +82,10 @@ export const Scene: React.FC<SceneProps> = ({ state }) => {
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 2 - 0.05}
           minDistance={4}
-          maxDistance={12}
+          maxDistance={30}
           autoRotate={state.mode === 'Ambient'}
           autoRotateSpeed={0.3}
+          target={[0, 1, 0]}
         />
       </Canvas>
     </div>
