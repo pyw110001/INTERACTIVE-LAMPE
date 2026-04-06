@@ -18,4 +18,5 @@ export interface ChatMessage {
   sender: 'user' | 'system';
   text: string;
   timestamp: Date;
+  streaming?: boolean;
 }
