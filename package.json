@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "build:win": "electron-builder --win --config"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -35,6 +36,43 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.interactive-lampe.app",
+    "productName": "情绪交互式智能台灯",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "server/.env.local",
+        "to": "server/.env.local"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": 2052
+    }
   }
 }

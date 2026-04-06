@@ -16,6 +16,11 @@ const VALID_MODES: LampMode[] = ['Reading', 'Work', 'Relax', 'Sleep', 'Ambient']
 const VALID_EMOTIONS: Emotion[] = ['Calm', 'Focus', 'Relax', 'Sleep', 'Joy'];
 const ACTION_START = '[ACTION:';
 
+function getApiBase() {
+  // Electron 生产模式走本地后端
+  return import.meta.env.PROD ? 'http://localhost:3001' : '';
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -136,7 +141,7 @@ export async function streamChatCompletion({
     lampState,
   };
 
-  const response = await fetch('/api/chat', {
+  const response = await fetch(`${getApiBase()}/api/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

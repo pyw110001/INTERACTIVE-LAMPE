@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+release/
+.env.local
+*.exe
+*.blockmap
+*.nupkg

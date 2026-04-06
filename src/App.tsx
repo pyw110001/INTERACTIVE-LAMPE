@@ -8,6 +8,10 @@ import { LampState, ChatMessage } from './types';
 import { parseActionFromResponse, streamChatCompletion } from './utils/chatLogic';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 
+function getApiBase() {
+  return import.meta.env.PROD ? 'http://localhost:3001' : '';
+}
+
 
 export default function App() {
   const [state, setState] = useState<LampState>({
@@ -64,7 +68,7 @@ export default function App() {
 
     const initializeConfig = async () => {
       try {
-        const statusResponse = await fetch('/api/config/status');
+        const statusResponse = await fetch(`${getApiBase()}/api/config/status`);
         if (!statusResponse.ok) {
           throw new Error(`status check failed: ${statusResponse.status}`);
         }
@@ -109,7 +113,7 @@ export default function App() {
     setApiKeyError('');
 
     try {
-      const response = await fetch('/api/config/apikey', {
+      const response = await fetch(`${getApiBase()}/api/config/apikey`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
