@@ -8,7 +8,7 @@
 - Three.js
 - Vite
 - Express
-- ChatGLM API (`glm-4.5-air`)
+- ChatGLM API (`glm-4.7-flash`)
 
 ## 功能说明
 

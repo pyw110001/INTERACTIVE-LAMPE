@@ -1,13 +1,20 @@
 import React from 'react';
-import { LampState, LampMode, ShellVersion } from '../types';
-import { Power, Sun, Thermometer, Palette, Box, Activity } from 'lucide-react';
+import { LampState, LampMode, ShellVersion, SurfaceSettings } from '../types';
+import { Power, Sun, Thermometer, Palette, Box, Activity, Layers } from 'lucide-react';
 
 interface ControlPanelProps {
   state: LampState;
+  surface: SurfaceSettings;
   onChange: (newState: Partial<LampState>) => void;
+  onSurfaceChange: (nextSurface: Partial<SurfaceSettings>) => void;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ state, onChange }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+  state,
+  surface,
+  onChange,
+  onSurfaceChange,
+}) => {
   const modes: LampMode[] = ['Reading', 'Work', 'Relax', 'Sleep', 'Ambient'];
   const shells: { id: ShellVersion; desc: string }[] = [
     { id: 'Organic Soft', desc: 'Bio-inspired translucent resin' }
@@ -146,6 +153,58 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ state, onChange }) =
               )}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-4 border-t border-white/5">
+        <div className="flex items-center gap-3 text-[13px] text-white/60 font-light">
+          <Layers size={16} className="text-white/40" />
+          <span>Ground Material</span>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-[12px] text-white/55">
+            <span>Color</span>
+            <span className="font-mono uppercase">{surface.floorColor}</span>
+          </div>
+          <div className="relative h-9 overflow-hidden rounded-xl border border-white/10">
+            <input
+              type="color"
+              value={surface.floorColor}
+              onChange={(event) => onSurfaceChange({ floorColor: event.target.value })}
+              className="absolute -left-2 -top-2 h-[150%] w-[120%] cursor-pointer"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-[12px] text-white/55">
+            <span>Roughness</span>
+            <span className="font-mono">{surface.floorRoughness}%</span>
+          </div>
+          <input
+            type="range"
+            min="8"
+            max="100"
+            value={surface.floorRoughness}
+            onChange={(event) => onSurfaceChange({ floorRoughness: Number(event.target.value) })}
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-white"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-[12px] text-white/55">
+            <span>Highlight</span>
+            <span className="font-mono">{surface.floorHighlight}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={surface.floorHighlight}
+            onChange={(event) => onSurfaceChange({ floorHighlight: Number(event.target.value) })}
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-white"
+          />
         </div>
       </div>
       

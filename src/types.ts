@@ -13,6 +13,12 @@ export interface LampState {
   transitioning: boolean;
 }
 
+export interface SurfaceSettings {
+  floorColor: string;
+  floorRoughness: number; // 0-100
+  floorHighlight: number; // 0-100
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'system';

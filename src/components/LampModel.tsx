@@ -1,11 +1,24 @@
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { LampState } from '../types';
 import { getLampColor } from '../utils/colorUtils';
 
 export type LampRenderQuality = 'low' | 'high';
+type BeamProfile = {
+  color: THREE.Color;
+  brightnessScale: number;
+  pointMax: number;
+  spotMax: number;
+  emissiveMult: number;
+  spotAngle: number;
+  spotPenumbra: number;
+  spotDistance: number;
+  pointDistance: number;
+  pulseDepth: number;
+  pulseSpeed: number;
+};
 
 interface LampModelProps {
   state: LampState;
@@ -14,51 +27,158 @@ interface LampModelProps {
   enableSpotlightShadow?: boolean;
 }
 
+const MODEL_URL = '/models/base.glb';
+const MODEL_SCALE = 2.25;
+const LIGHT_POSITION: [number, number, number] = [0, 3.22, 0.08];
+const SPOT_TARGET_POSITION: [number, number, number] = [0, 0.15, 0.25];
+
+function enhanceLampMaterial(material: THREE.Material) {
+  if (!(material instanceof THREE.MeshStandardMaterial)) {
+    return material;
+  }
+
+  const enhanced = material.clone();
+  enhanced.envMapIntensity = enhanced.map ? 1.15 : 0.85;
+
+  if (!enhanced.map) {
+    enhanced.color.set('#9fb0b5');
+    enhanced.roughness = 0.62;
+    enhanced.metalness = 0.08;
+  }
+
+  enhanced.needsUpdate = true;
+
+  return enhanced;
+}
+
+function cloneModelScene(scene: THREE.Group, meshShadow: boolean) {
+  const clone = scene.clone(true);
+
+  clone.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+
+    object.castShadow = meshShadow;
+    object.receiveShadow = meshShadow;
+    object.material = Array.isArray(object.material)
+      ? object.material.map((material) => enhanceLampMaterial(material))
+      : enhanceLampMaterial(object.material);
+  });
+
+  return clone;
+}
+
+function getModeBeamProfile(state: LampState, quality: LampRenderQuality): BeamProfile {
+  const qualityScale = quality === 'low' ? 0.7 : 1;
+  const baseColor = getLampColor(state.colorTemp, state.color, state.mode);
+
+  switch (state.mode) {
+    case 'Reading':
+      return {
+        color: new THREE.Color('#ffd08a'),
+        brightnessScale: 1.05,
+        pointMax: 3.2 * qualityScale,
+        spotMax: 24 * qualityScale,
+        emissiveMult: 12 * qualityScale,
+        spotAngle: Math.PI / 5.2,
+        spotPenumbra: 0.18,
+        spotDistance: 18,
+        pointDistance: 9,
+        pulseDepth: 0,
+        pulseSpeed: 1,
+      };
+    case 'Work':
+      return {
+        color: new THREE.Color('#cfe8ff'),
+        brightnessScale: 1.25,
+        pointMax: 4.2 * qualityScale,
+        spotMax: 30 * qualityScale,
+        emissiveMult: 15 * qualityScale,
+        spotAngle: Math.PI / 4.1,
+        spotPenumbra: 0.08,
+        spotDistance: 21,
+        pointDistance: 11,
+        pulseDepth: 0,
+        pulseSpeed: 1,
+      };
+    case 'Relax':
+      return {
+        color: baseColor,
+        brightnessScale: 1.15,
+        pointMax: 5.4 * qualityScale,
+        spotMax: 22 * qualityScale,
+        emissiveMult: 24 * qualityScale,
+        spotAngle: Math.PI / 3.1,
+        spotPenumbra: 0.65,
+        spotDistance: 22,
+        pointDistance: 15,
+        pulseDepth: 0.12,
+        pulseSpeed: 1.2,
+      };
+    case 'Sleep':
+      return {
+        color: new THREE.Color('#ff8f62'),
+        brightnessScale: 0.52,
+        pointMax: 2.3 * qualityScale,
+        spotMax: 9 * qualityScale,
+        emissiveMult: 7 * qualityScale,
+        spotAngle: Math.PI / 2.6,
+        spotPenumbra: 0.85,
+        spotDistance: 14,
+        pointDistance: 8,
+        pulseDepth: 0.52,
+        pulseSpeed: 0.7,
+      };
+    case 'Ambient':
+      return {
+        color: baseColor,
+        brightnessScale: 0.95,
+        pointMax: 5.8 * qualityScale,
+        spotMax: 16 * qualityScale,
+        emissiveMult: 18 * qualityScale,
+        spotAngle: Math.PI / 2.2,
+        spotPenumbra: 0.92,
+        spotDistance: 24,
+        pointDistance: 18,
+        pulseDepth: 0.18,
+        pulseSpeed: 0.9,
+      };
+    default:
+      return {
+        color: baseColor,
+        brightnessScale: 1,
+        pointMax: 4 * qualityScale,
+        spotMax: 20 * qualityScale,
+        emissiveMult: 10 * qualityScale,
+        spotAngle: Math.PI / 3,
+        spotPenumbra: 0.5,
+        spotDistance: 25,
+        pointDistance: 15,
+        pulseDepth: 0,
+        pulseSpeed: 1,
+      };
+  }
+}
+
 export const LampModel: React.FC<LampModelProps> = ({
   state,
   quality = 'high',
   enableHtmlLabels = true,
   enableSpotlightShadow = true,
 }) => {
+  const gltf = useGLTF(MODEL_URL);
   const lightRef = useRef<THREE.PointLight>(null);
   const spotLightRef = useRef<THREE.SpotLight>(null);
   const coreMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const meshShadow = quality === 'high';
 
-  const targetColor = useMemo(() => {
-    if (!state.power) return new THREE.Color(0x050505);
-    return getLampColor(state.colorTemp, state.color, state.mode);
-  }, [state.power, state.colorTemp, state.color, state.mode]);
-
-  const spotLightTarget = useMemo(() => new THREE.Object3D(), []);
-
-  const geometry = useMemo(
-    () =>
-      quality === 'low'
-        ? {
-            tubeSegments: 24,
-            tubeRadialSegments: 8,
-            baseSegments: 18,
-            armSegments: 14,
-            jointSegments: 14,
-            rimTubularSegments: 24,
-            rimRadialSegments: 8,
-            bulbWidthSegments: 16,
-            bulbHeightSegments: 16,
-          }
-        : {
-            tubeSegments: 64,
-            tubeRadialSegments: 16,
-            baseSegments: 64,
-            armSegments: 32,
-            jointSegments: 32,
-            rimTubularSegments: 64,
-            rimRadialSegments: 16,
-            bulbWidthSegments: 32,
-            bulbHeightSegments: 32,
-          },
-    [quality],
+  const beamProfile = useMemo(
+    () => getModeBeamProfile(state, quality),
+    [state.colorTemp, state.color, state.mode, quality],
   );
+
+  const lampScene = useMemo(() => cloneModelScene(gltf.scene, meshShadow), [gltf.scene, meshShadow]);
+  const spotLightTarget = useMemo(() => new THREE.Object3D(), []);
 
   const spotConfig = useMemo(
     () => ({
@@ -70,49 +190,47 @@ export const LampModel: React.FC<LampModelProps> = ({
     [quality],
   );
 
-  const wireCurve = useMemo(() => {
-    return new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-1.5, 0.05, 0),
-      new THREE.Vector3(-2.5, 0.05, 0.5),
-      new THREE.Vector3(-4, 0.05, -0.2),
-      new THREE.Vector3(-6, 0.05, 0),
-    ]);
-  }, []);
-
   useFrame((rootState, delta) => {
     const time = rootState.clock.elapsedTime;
-    const currentTargetColor = targetColor.clone();
+    const currentTargetColor = beamProfile.color.clone();
     let currentBrightness = state.brightness;
 
     if (state.power && state.mode === 'Relax') {
-      const hue = (time * 0.5) % 1;
-      currentTargetColor.setHSL(hue, 1, 0.5);
+      const hue = (time * 0.16) % 1;
+      currentTargetColor.setHSL(hue, 0.9, 0.58);
       currentBrightness = 100;
     }
 
-    if (state.power && state.mode === 'Sleep') {
-      const breath = (Math.sin(time * 2) + 1) / 2;
-      currentBrightness = state.brightness * (0.2 + 0.8 * breath);
+    if (state.power && state.mode === 'Ambient') {
+      currentTargetColor.offsetHSL(Math.sin(time * 0.45) * 0.04, 0, 0.04);
     }
 
+    const pulse = beamProfile.pulseDepth > 0
+      ? 1 - beamProfile.pulseDepth + beamProfile.pulseDepth * ((Math.sin(time * beamProfile.pulseSpeed * Math.PI * 2) + 1) / 2)
+      : 1;
+    currentBrightness *= beamProfile.brightnessScale * pulse;
+
     const lerpFactor = Math.min(state.transitioning ? 3 * delta : 15 * delta, 1);
-    const pointLightMax = quality === 'low' ? 2.4 : 4;
-    const spotLightMax = quality === 'low' ? 8 : 20;
+    const brightnessRatio = THREE.MathUtils.clamp(currentBrightness / 100, 0, 1.35);
 
     if (lightRef.current) {
       lightRef.current.color.lerp(currentTargetColor, lerpFactor);
+      lightRef.current.distance = THREE.MathUtils.lerp(lightRef.current.distance, beamProfile.pointDistance, lerpFactor);
       lightRef.current.intensity = THREE.MathUtils.lerp(
         lightRef.current.intensity,
-        state.power ? (currentBrightness / 100) * pointLightMax : 0,
+        state.power ? brightnessRatio * beamProfile.pointMax : 0,
         lerpFactor,
       );
     }
 
     if (spotLightRef.current) {
       spotLightRef.current.color.lerp(currentTargetColor, lerpFactor);
+      spotLightRef.current.angle = THREE.MathUtils.lerp(spotLightRef.current.angle, beamProfile.spotAngle, lerpFactor);
+      spotLightRef.current.penumbra = THREE.MathUtils.lerp(spotLightRef.current.penumbra, beamProfile.spotPenumbra, lerpFactor);
+      spotLightRef.current.distance = THREE.MathUtils.lerp(spotLightRef.current.distance, beamProfile.spotDistance, lerpFactor);
       spotLightRef.current.intensity = THREE.MathUtils.lerp(
         spotLightRef.current.intensity,
-        state.power ? (currentBrightness / 100) * spotLightMax : 0,
+        state.power ? brightnessRatio * beamProfile.spotMax : 0,
         lerpFactor,
       );
     }
@@ -120,161 +238,77 @@ export const LampModel: React.FC<LampModelProps> = ({
     if (coreMaterialRef.current) {
       coreMaterialRef.current.emissive.lerp(currentTargetColor, lerpFactor);
 
-      let emissiveMult = quality === 'low' ? 6 : 10;
-      if (state.mode === 'Relax') emissiveMult = quality === 'low' ? 10 : 20;
-
       coreMaterialRef.current.emissiveIntensity = THREE.MathUtils.lerp(
         coreMaterialRef.current.emissiveIntensity,
-        state.power ? (currentBrightness / 100) * emissiveMult : 0,
+        state.power ? brightnessRatio * beamProfile.emissiveMult : 0,
         lerpFactor,
       );
     }
 
     if (groupRef.current) {
-      groupRef.current.position.y = Math.sin(time * 2) * 0.02;
+      groupRef.current.position.y = Math.sin(time * 2) * 0.015;
     }
   });
 
-  const bodyColor = '#7b82b8';
-  const shadeColor = '#ff8c5a';
-  const darkColor = '#222222';
-  const jointColor = '#e09f7d';
-  const meshShadow = quality === 'high';
-
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
-      <mesh castShadow={meshShadow} receiveShadow={meshShadow}>
-        <tubeGeometry args={[wireCurve, geometry.tubeSegments, 0.06, geometry.tubeRadialSegments, false]} />
-        <meshStandardMaterial color={darkColor} roughness={0.8} />
+      <primitive object={lampScene} scale={MODEL_SCALE} />
+
+      <mesh position={LIGHT_POSITION}>
+        <sphereGeometry args={[0.14, quality === 'low' ? 16 : 32, quality === 'low' ? 16 : 32]} />
+        <meshStandardMaterial
+          ref={coreMaterialRef}
+          color="#ffffff"
+          emissive="#ffffff"
+          emissiveIntensity={0}
+          transparent
+          opacity={0.72}
+          toneMapped={false}
+        />
       </mesh>
 
-      <mesh position={[0, 0.05, 0]} receiveShadow={meshShadow} castShadow={meshShadow}>
-        <cylinderGeometry args={[1.6, 1.6, 0.1, geometry.baseSegments]} />
-        <meshStandardMaterial color={darkColor} roughness={0.8} metalness={0.2} />
-      </mesh>
-      <mesh position={[0, 0.25, 0]} receiveShadow={meshShadow} castShadow={meshShadow}>
-        <cylinderGeometry args={[1.5, 1.6, 0.3, geometry.baseSegments]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.1} />
-      </mesh>
+      <pointLight
+        ref={lightRef}
+        position={LIGHT_POSITION}
+        distance={quality === 'low' ? 10 : 15}
+        decay={2}
+      />
 
-      <mesh position={[0, 0.5, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-        <cylinderGeometry args={[0.25, 0.25, 0.2, geometry.armSegments]} />
-        <meshStandardMaterial color={darkColor} roughness={0.8} />
-      </mesh>
+      <primitive object={spotLightTarget} position={SPOT_TARGET_POSITION} />
+      <spotLight
+        ref={spotLightRef}
+        position={LIGHT_POSITION}
+        target={spotLightTarget}
+        angle={beamProfile.spotAngle || spotConfig.angle}
+        penumbra={beamProfile.spotPenumbra || spotConfig.penumbra}
+        distance={spotConfig.distance}
+        decay={2}
+        castShadow={enableSpotlightShadow && meshShadow}
+        shadow-mapSize={[spotConfig.shadowMapSize, spotConfig.shadowMapSize]}
+        shadow-bias={-0.00015}
+      />
 
-      <group position={[0, 0.6, 0]} rotation={[0, 0, Math.PI / 6]}>
-        <mesh position={[0, 1.2, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-          <cylinderGeometry args={[0.15, 0.15, 2.4, geometry.armSegments]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.6} />
-        </mesh>
-
-        <group position={[0, 2.4, 0]}>
-          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-            <cylinderGeometry args={[0.35, 0.35, 0.4, geometry.jointSegments]} />
-            <meshStandardMaterial color={bodyColor} roughness={0.6} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-            <cylinderGeometry args={[0.15, 0.15, 0.45, geometry.jointSegments]} />
-            <meshStandardMaterial color={jointColor} roughness={0.4} />
-          </mesh>
-
-          <group rotation={[0, 0, -Math.PI / 2]}>
-            <mesh position={[0, 1.2, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-              <cylinderGeometry args={[0.15, 0.15, 2.4, geometry.armSegments]} />
-              <meshStandardMaterial color={bodyColor} roughness={0.6} />
-            </mesh>
-
-            <group position={[0, 2.4, 0]}>
-              <mesh rotation={[Math.PI / 2, 0, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                <cylinderGeometry args={[0.35, 0.35, 0.4, geometry.jointSegments]} />
-                <meshStandardMaterial color={bodyColor} roughness={0.6} />
-              </mesh>
-              <mesh rotation={[Math.PI / 2, 0, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                <cylinderGeometry args={[0.15, 0.15, 0.45, geometry.jointSegments]} />
-                <meshStandardMaterial color={jointColor} roughness={0.4} />
-              </mesh>
-
-              <group rotation={[0, 0, Math.PI / 1.8]}>
-                <mesh position={[0, 0.2, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                  <cylinderGeometry args={[0.5, 0.6, 1, geometry.armSegments]} />
-                  <meshStandardMaterial color={bodyColor} roughness={0.6} />
-                </mesh>
-
-                <mesh position={[0, 0.75, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                  <cylinderGeometry args={[0.2, 0.2, 0.1, geometry.armSegments]} />
-                  <meshStandardMaterial color={darkColor} roughness={0.8} />
-                </mesh>
-
-                <mesh position={[0, 0.85, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                  <cylinderGeometry args={[0.15, 0.15, 0.1, geometry.armSegments]} />
-                  <meshStandardMaterial color={shadeColor} roughness={0.6} />
-                </mesh>
-
-                <mesh position={[0, -0.9, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                  <cylinderGeometry args={[0.6, 1.6, 1.2, geometry.armSegments, 1, true]} />
-                  <meshStandardMaterial color={shadeColor} roughness={0.6} side={THREE.DoubleSide} />
-                </mesh>
-                <mesh position={[0, -1.5, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow={meshShadow} receiveShadow={meshShadow}>
-                  <torusGeometry args={[1.6, 0.04, geometry.rimRadialSegments, geometry.rimTubularSegments]} />
-                  <meshStandardMaterial color={shadeColor} roughness={0.6} />
-                </mesh>
-
-                <mesh position={[0, -1.0, 0]}>
-                  <sphereGeometry args={[0.35, geometry.bulbWidthSegments, geometry.bulbHeightSegments]} />
-                  <meshStandardMaterial
-                    ref={coreMaterialRef}
-                    color="#ffffff"
-                    emissive="#ffffff"
-                    emissiveIntensity={0}
-                    toneMapped={false}
-                  />
-                </mesh>
-
-                <pointLight
-                  ref={lightRef}
-                  position={[0, -1.0, 0]}
-                  distance={quality === 'low' ? 10 : 15}
-                  decay={2}
-                />
-
-                <primitive object={spotLightTarget} position={[0, -5, 0]} />
-                <spotLight
-                  ref={spotLightRef}
-                  position={[0, -1.0, 0]}
-                  target={spotLightTarget}
-                  angle={spotConfig.angle}
-                  penumbra={spotConfig.penumbra}
-                  distance={spotConfig.distance}
-                  decay={2}
-                  castShadow={enableSpotlightShadow && meshShadow}
-                  shadow-mapSize={[spotConfig.shadowMapSize, spotConfig.shadowMapSize]}
-                  shadow-bias={-0.00015}
-                />
-
-                {enableHtmlLabels && (
-                  <Html position={[2, -1, 0]} className="pointer-events-none transition-opacity duration-500" style={{ opacity: state.power ? 1 : 0.3 }}>
-                    <div className="flex translate-x-2 items-center gap-4">
-                      <div className="relative h-[1px] w-12 bg-white/30">
-                        <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-white/50" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40">Lightbulb Core</div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: state.power ? state.color : '#333', color: state.power ? state.color : '#333' }} />
-                          <span className="text-[11px] font-medium tracking-wide text-white/90">{state.power ? 'ACTIVE' : 'STANDBY'}</span>
-                        </div>
-                        <div className="mt-0.5 font-mono text-[10px] text-white/50">
-                          {state.brightness}% / {state.mode === 'Ambient' || state.mode === 'Relax' ? 'RGB' : `${state.colorTemp}K`}
-                        </div>
-                      </div>
-                    </div>
-                  </Html>
-                )}
-              </group>
-            </group>
-          </group>
-        </group>
-      </group>
+      {enableHtmlLabels && (
+        <Html position={[1.55, 2.55, 0.1]} className="pointer-events-none transition-opacity duration-500" style={{ opacity: state.power ? 1 : 0.3 }}>
+          <div className="flex translate-x-2 items-center gap-4">
+            <div className="relative h-[1px] w-12 bg-white/30">
+              <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-white/50" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40">Imported GLB Lamp</div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: state.power ? state.color : '#333', color: state.power ? state.color : '#333' }} />
+                <span className="text-[11px] font-medium tracking-wide text-white/90">{state.power ? 'ACTIVE' : 'STANDBY'}</span>
+              </div>
+              <div className="mt-0.5 font-mono text-[10px] text-white/50">
+                {state.brightness}% / {state.mode === 'Ambient' || state.mode === 'Relax' ? 'RGB' : `${state.colorTemp}K`}
+              </div>
+            </div>
+          </div>
+        </Html>
+      )}
     </group>
   );
 };
+
+useGLTF.preload(MODEL_URL);

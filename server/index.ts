@@ -5,14 +5,16 @@ import path from 'node:path';
 
 const ENV_LOCAL_PATH = path.resolve(process.cwd(), 'server/.env.local');
 const CHATGLM_BASE_URL = 'https://open.bigmodel.cn/api/paas/v4';
+const DEFAULT_CHATGLM_MODEL = 'glm-4.7-flash';
+
+dotenv.config({ path: ENV_LOCAL_PATH, override: true });
+
 const PORT = Number(process.env.PORT || 3001);
 const MAX_MESSAGE_COUNT = 20;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_API_KEY_LENGTH = 512;
 const SYSTEM_PROMPT =
   '你是一个情绪交互式智能台灯的AI助手，可以根据用户的情绪和需求调节光线。支持的模式：Reading/Work/Relax/Sleep/Ambient。可以调节亮度(0-100)、色温(2700-6500K)、颜色。当用户表达需求时，你需要以JSON格式返回灯的状态变化，并把 JSON 放在 [ACTION:{"brightness":80,"colorTemp":4000,"mode":"Reading","emotion":"Focus"}] 这样的标记中。没有需要改变灯状态时，不要输出 ACTION 标记。';
-
-dotenv.config({ path: ENV_LOCAL_PATH });
 
 const app = express();
 
@@ -35,6 +37,11 @@ interface LampStatePayload {
 function getConfiguredApiKey() {
   const apiKey = process.env.CHATGLM_API_KEY;
   return typeof apiKey === 'string' ? apiKey.trim() : '';
+}
+
+function getConfiguredModel() {
+  const model = process.env.CHATGLM_MODEL;
+  return typeof model === 'string' && model.trim() ? model.trim() : DEFAULT_CHATGLM_MODEL;
 }
 
 function sanitizeApiKey(value: unknown) {
@@ -147,6 +154,7 @@ app.use(express.json({ limit: '32kb' }));
 app.get('/api/config/status', (_req, res) => {
   res.json({
     api_key_configured: getConfiguredApiKey().length > 0,
+    model: getConfiguredModel(),
   });
 });
 
@@ -201,7 +209,14 @@ app.post('/api/chat', async (req, res) => {
 
   const abortController = new AbortController();
   const abortUpstream = () => abortController.abort();
-  req.on('close', abortUpstream);
+  const abortUpstreamOnResponseClose = () => {
+    if (!res.writableEnded) {
+      abortUpstream();
+    }
+  };
+
+  req.on('aborted', abortUpstream);
+  res.on('close', abortUpstreamOnResponseClose);
 
   try {
     const upstream = await fetch(`${CHATGLM_BASE_URL}/chat/completions`, {
@@ -211,7 +226,7 @@ app.post('/api/chat', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'glm-4.5-air',
+        model: getConfiguredModel(),
         stream: true,
         messages: requestMessages,
       }),
@@ -304,7 +319,8 @@ app.post('/api/chat', async (req, res) => {
     res.write(`\n${message}`);
     res.end();
   } finally {
-    req.off('close', abortUpstream);
+    req.off('aborted', abortUpstream);
+    res.off('close', abortUpstreamOnResponseClose);
   }
 });
 

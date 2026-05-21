@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Sparkles } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
 import { LampModel, type LampRenderQuality } from './LampModel';
-import { LampState } from '../types';
+import { LampState, SurfaceSettings } from '../types';
 
 interface SceneProps {
   state: LampState;
+  surface: SurfaceSettings;
 }
 
 interface SceneStatusProps {
@@ -175,7 +176,7 @@ const detectRenderProfile = (): RenderProfile => {
   }
 };
 
-export const Scene: React.FC<SceneProps> = ({ state }) => {
+export const Scene: React.FC<SceneProps> = ({ state, surface }) => {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [profile, setProfile] = useState<RenderProfile>(() => detectRenderProfile());
 
@@ -208,6 +209,8 @@ export const Scene: React.FC<SceneProps> = ({ state }) => {
   const controlsDistance = profile.quality === 'low'
     ? { minDistance: 4.6, maxDistance: 14 }
     : { minDistance: 4, maxDistance: 30 };
+  const floorRoughness = Math.max(0.08, surface.floorRoughness / 100);
+  const floorHighlight = surface.floorHighlight / 100;
 
   const showFallback = !profile.supported || Boolean(renderError);
 
@@ -267,28 +270,74 @@ export const Scene: React.FC<SceneProps> = ({ state }) => {
             <color attach="background" args={['#020202']} />
             <fog attach="fog" args={['#020202', 8, profile.quality === 'low' ? 28 : 40]} />
 
-            <ambientLight intensity={profile.quality === 'low' ? 0.8 : 0.18} />
+            <ambientLight intensity={profile.quality === 'low' ? 0.72 : 0.26} />
+
+            <hemisphereLight
+              color="#dce8ff"
+              groundColor="#101215"
+              intensity={profile.quality === 'low' ? 0.62 : 0.42}
+            />
+
+            <pointLight
+              position={[-3.8, 3.4, 4.8]}
+              intensity={profile.quality === 'low' ? 1.2 : 1.7}
+              distance={12}
+              color="#c7d8ff"
+              decay={2}
+            />
+
+            <pointLight
+              position={[3.2, 2.2, -2.4]}
+              intensity={profile.quality === 'low' ? 0.55 : 0.85}
+              distance={8}
+              color="#fff0d2"
+              decay={2}
+            />
+
+            <pointLight
+              position={[0, 2.2, 5.2]}
+              intensity={profile.quality === 'low' ? 0.18 : 0.28}
+              distance={9}
+              color="#f6fbff"
+              decay={2}
+            />
+
+            <pointLight
+              position={[-2.6, 1.6, 1.6]}
+              intensity={profile.quality === 'low' ? 1.4 : 2.1}
+              distance={6}
+              color="#ffffff"
+              decay={2}
+            />
 
             {profile.enableDirectionalLight && (
               <directionalLight
-                position={[5, 10, 5]}
-                intensity={0.22}
+                position={[4, 7, 5]}
+                intensity={0.38}
                 castShadow
                 shadow-mapSize={[1024, 1024]}
                 shadow-bias={-0.00015}
               />
             )}
 
-            <LampModel
-              state={state}
-              quality={profile.quality}
-              enableHtmlLabels={profile.enableHtmlLabels}
-              enableSpotlightShadow={profile.enableShadows}
-            />
+            <Suspense fallback={null}>
+              <LampModel
+                state={state}
+                quality={profile.quality}
+                enableHtmlLabels={profile.enableHtmlLabels}
+                enableSpotlightShadow={profile.enableShadows}
+              />
+            </Suspense>
 
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow={profile.enableShadows}>
               <planeGeometry args={[36, 36]} />
-              <meshStandardMaterial color="#050505" roughness={0.78} metalness={0.18} />
+              <meshStandardMaterial
+                color={surface.floorColor}
+                roughness={floorRoughness}
+                metalness={0.04 + floorHighlight * 0.24}
+                emissive={surface.floorColor}
+                emissiveIntensity={floorHighlight * 0.18}
+              />
             </mesh>
 
             {profile.quality === 'high' && (
@@ -308,14 +357,6 @@ export const Scene: React.FC<SceneProps> = ({ state }) => {
                 blur={2.6}
                 far={4}
                 color="#000000"
-              />
-            )}
-
-            {profile.useEnvironment && (
-              <hemisphereLight
-                color="#d8dcff"
-                groundColor="#1f1b16"
-                intensity={0.35}
               />
             )}
 

@@ -4,7 +4,7 @@ import { Scene } from './components/Scene';
 import { ControlPanel } from './components/ControlPanel';
 import { ChatPanel } from './components/ChatPanel';
 import { StatusBar } from './components/StatusBar';
-import { LampState, ChatMessage } from './types';
+import { LampState, ChatMessage, SurfaceSettings } from './types';
 import { parseActionFromResponse, streamChatCompletion } from './utils/chatLogic';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 
@@ -19,6 +19,11 @@ export default function App() {
     shellVersion: 'Organic Soft',
     emotion: 'Calm',
     transitioning: true,
+  });
+  const [surfaceSettings, setSurfaceSettings] = useState<SurfaceSettings>({
+    floorColor: '#1a2028',
+    floorRoughness: 56,
+    floorHighlight: 34,
   });
 
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -96,6 +101,10 @@ export default function App() {
 
   const handleStateChange = (newState: Partial<LampState>) => {
     setState((prev) => ({ ...prev, ...newState }));
+  };
+
+  const handleSurfaceChange = (nextSurface: Partial<SurfaceSettings>) => {
+    setSurfaceSettings((prev) => ({ ...prev, ...nextSurface }));
   };
 
   const saveApiKey = async (rawKey: string): Promise<boolean> => {
@@ -279,7 +288,7 @@ export default function App() {
       </div>
 
       <div className="absolute inset-0 z-0 min-h-0">
-        <Scene state={state} />
+        <Scene state={state} surface={surfaceSettings} />
       </div>
 
       <div className="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
@@ -334,7 +343,12 @@ export default function App() {
               >
                 <X size={16} />
               </button>
-              <ControlPanel state={state} onChange={handleStateChange} />
+              <ControlPanel
+                state={state}
+                surface={surfaceSettings}
+                onChange={handleStateChange}
+                onSurfaceChange={handleSurfaceChange}
+              />
             </div>
           </div>
         </div>
